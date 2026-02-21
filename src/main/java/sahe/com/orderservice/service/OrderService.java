@@ -122,10 +122,10 @@ public class OrderService {
                         new StockUpdateRequest(item.getQuantity(), "Order #" + savedOrder.getId())
                 );
 
-                log.info("✅ Stock reduced successfully for product: {}. New quantity: {}",
+                log.info("Stock reduced successfully for product: {}. New quantity: {}",
                         item.getProductId(), reducedInventory.getQuantity());
             } catch (Exception e) {
-                log.error("❌ ERROR reducing stock for product {}: {}", item.getProductId(), e.getMessage(), e);
+                log.error("ERROR reducing stock for product {}: {}", item.getProductId(), e.getMessage(), e);
                 // Lanzar excepción para que falle la orden
                 throw new RuntimeException("Failed to reduce stock for product " + item.getProductId() + ": " + e.getMessage());
             }
