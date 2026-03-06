@@ -24,64 +24,55 @@ public class OrderService {
     private final ProductClient productClient;
     private final InventoryClient inventoryClient;
 
-    // Obtener todas las ordenes
     public List<OrderResponse> getAllOrders() {
-        log.info("Obteniendo todos los pedidos");
+        log.info("Receiving all orders");
         return orderRepository.findAll()
                 .stream()
                 .map(OrderResponse::new)
                 .collect(Collectors.toList());
     }
 
-    // Obtener orden x id
     public OrderResponse getOrderById(Long id) {
-        log.info("Obtener orden por id: {}", id);
+        log.info("Get order by id: {}", id);
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Pedido no encontrado con id: " + id));
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
         return new OrderResponse(order);
     }
 
-    // Obtener ordenes x usuario
     public List<OrderResponse> getOrdersByUserId(Long userId) {
-        log.info("Obtener pedidos por id de usuario: {}", userId);
+        log.info("Get orders by user ID: {}", userId);
         return orderRepository.findByUserId(userId)
                 .stream()
                 .map(OrderResponse::new)
                 .collect(Collectors.toList());
     }
 
-    // Obtener ordenes x estado
     public List<OrderResponse> getOrdersByStatus(Order.OrderStatus status) {
-        log.info("Obtener pedidos por estado: {}", status);
+        log.info("Get orders by status: {}", status);
         return orderRepository.findByStatus(status)
                 .stream()
                 .map(OrderResponse::new)
                 .collect(Collectors.toList());
     }
 
-    // Crear pedido
     @Transactional
     public OrderResponse createOrder(OrderRequest request) {
         log.info(": {}", request.getUserId());
-        // 1. Validar y obtener información de productos
         for (OrderItemRequest itemRequest : request.getItems()) {
-            // Verificar que el producto existe y está activo
             ProductResponse product = productClient.getProductById(itemRequest.getProductId());
             if (!product.getActive()) {
-                throw new RuntimeException("Producto " + product.getName() + " no esta activo");
+                throw new RuntimeException("Product " + product.getName() + " is not active");
             }
-            // Verificar disponibilidad en inventario
             AvailabilityResponse availability = inventoryClient.checkAvailability(
                     itemRequest.getProductId(),
                     itemRequest.getQuantity()
             );
 
             if (!availability.getAvailable()) {
-                throw new RuntimeException("Stock insuficiente de producto: " + product.getName());
+                throw new RuntimeException("Insufficient stock of product: " + product.getName());
             }
         }
 
-        // 2. Crear el pedido
         Order order = new Order();
         order.setUserId(request.getUserId());
         order.setShippingAddress(request.getShippingAddress());
@@ -91,7 +82,6 @@ public class OrderService {
         order.setNotes(request.getNotes());
         order.setStatus(Order.OrderStatus.PENDING);
 
-        // 3. Crear los items del pedido
         for (OrderItemRequest itemRequest : request.getItems()) {
             ProductResponse product = productClient.getProductById(itemRequest.getProductId());
 
@@ -104,14 +94,11 @@ public class OrderService {
             order.addItem(orderItem);
         }
 
-        // 4. Calcular total
         order.calculateTotal();
 
-        // 5. Guardar pedido
         Order savedOrder = orderRepository.save(order);
-        log.info("Pedido creado con id: {}", savedOrder.getId());
+        log.info("Order created with id: {}", savedOrder.getId());
 
-        // 6. Reducir stock en inventario
         for (OrderItem item : savedOrder.getItems()) {
             try {
                 log.info("Attempting to reduce stock for product {} by {} units",
@@ -126,114 +113,97 @@ public class OrderService {
                         item.getProductId(), reducedInventory.getQuantity());
             } catch (Exception e) {
                 log.error("ERROR reducing stock for product {}: {}", item.getProductId(), e.getMessage(), e);
-                // Lanzar excepción para que falle la orden
                 throw new RuntimeException("Failed to reduce stock for product " + item.getProductId() + ": " + e.getMessage());
             }
         }
 
-        // 7. Actualizar estado a CONFIRMED
         savedOrder.setStatus(Order.OrderStatus.CONFIRMED);
         Order confirmedOrder = orderRepository.save(savedOrder);
 
-        log.info("Pedido confirmado con éxito");
+        log.info("Order successfully confirmed");
         return new OrderResponse(confirmedOrder);
     }
 
-    // Actualizar estado de pedido
     @Transactional
     public OrderResponse updateOrderStatus(Long id, OrderStatusUpdateRequest request) {
-        log.info("Actualizando pedido {} estado a: {}", id, request.getStatus());
-
+        log.info("Updating order status {} to: {}", id, request.getStatus());
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Pedido no encontrado con id: " + id));
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
 
-        // Validar transiciones de estado
         validateStatusTransition(order.getStatus(), request.getStatus());
-
         order.setStatus(request.getStatus());
         Order updatedOrder = orderRepository.save(order);
 
-        log.info("Estado del pedido actualizado correctamente");
+        log.info("Order status successfully updated");
         return new OrderResponse(updatedOrder);
     }
 
-    // Cancelar pedido
     @Transactional
     public OrderResponse cancelOrder(Long id) {
-        log.info("Cancelando pedido: {}", id);
+        log.info("Canceling order: {}", id);
 
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Pedido no encontrado con id: " + id));
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
 
-        // Solo se puede cancelar si está en PENDING o CONFIRMED
         if (order.getStatus() != Order.OrderStatus.PENDING &&
                 order.getStatus() != Order.OrderStatus.CONFIRMED) {
-            throw new RuntimeException("No se puede cancelar el pedido en estado: " + order.getStatus());
+            throw new RuntimeException("The order cannot be cancelled in this state: " + order.getStatus());
         }
-
         order.setStatus(Order.OrderStatus.CANCELLED);
         Order cancelledOrder = orderRepository.save(order);
-
-        // Devolver stock al inventario
         for (OrderItem item : cancelledOrder.getItems()) {
             try {
-
-
-                log.info("Se debe devolver el stock del producto.: {}", item.getProductId());
+                log.info("The product stock must be returned: {}", item.getProductId());
                 // inventoryClient.addStock(item.getProductId(), new StockUpdateRequest(item.getQuantity(), "Order cancelled"));
             } catch (Exception e) {
-                log.error("Error al devolver el stock del producto: {}", item.getProductId(), e);
+                log.error("Error returning product stock: {}", item.getProductId(), e);
             }
         }
 
-        log.info("Pedido cancelado con éxito");
+        log.info("Order successfully cancelled");
         return new OrderResponse(cancelledOrder);
     }
 
-    // Eliminar orden
     @Transactional
     public void deleteOrder(Long id) {
-        log.info("Eliminando orden: {}", id);
-
+        log.info("Deleting order: {}", id);
         if (!orderRepository.existsById(id)) {
-            throw new RuntimeException("Pedido no encontrado con id: " + id);
+            throw new RuntimeException("Order not found with id: " + id);
         }
-
         orderRepository.deleteById(id);
-        log.info("Orden eliminada exitosamente");
+        log.info("Order successfully deleted");
     }
 
-    // Validar transicion de estado
     private void validateStatusTransition(Order.OrderStatus current, Order.OrderStatus newStatus) {
         // PENDING → CONFIRMED, CANCELLED
         if (current == Order.OrderStatus.PENDING) {
             if (newStatus != Order.OrderStatus.CONFIRMED && newStatus != Order.OrderStatus.CANCELLED) {
-                throw new RuntimeException("Transición de estado no válida de PENDIENTE a " + newStatus);
+                throw new RuntimeException("Invalid state transition from PENDING to" + newStatus);
             }
         }
 
         // CONFIRMED → SHIPPED, CANCELLED
         if (current == Order.OrderStatus.CONFIRMED) {
             if (newStatus != Order.OrderStatus.SHIPPED && newStatus != Order.OrderStatus.CANCELLED) {
-                throw new RuntimeException("Transición de estado no válida de CONFIRMADO a " + newStatus);
+                throw new RuntimeException("Invalid state transition from CONFIRMED to " + newStatus);
             }
         }
 
         // SHIPPED → DELIVERED
         if (current == Order.OrderStatus.SHIPPED) {
             if (newStatus != Order.OrderStatus.DELIVERED) {
-                throw new RuntimeException("Transición de estado no válida de ENVIADO a " + newStatus);
+                throw new RuntimeException("Invalid state transition from SHIPPED to " + newStatus);
             }
         }
 
-        // DELIVERED → no se puede cambiar
+        // DELIVERED
         if (current == Order.OrderStatus.DELIVERED) {
-            throw new RuntimeException("No se puede cambiar el estado del pedido entregado");
+            throw new RuntimeException("The status of a delivered order cannot be changed.");
         }
 
-        // CANCELLED → no se puede cambiar
+        // CANCELLED
         if (current == Order.OrderStatus.CANCELLED) {
-            throw new RuntimeException("No se puede cambiar el estado del pedido cancelado");
+            throw new RuntimeException("The status of a cancelled order cannot be changed.");
         }
     }
 }

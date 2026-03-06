@@ -37,7 +37,6 @@ public class OrderItem {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;
 
-    // Calcular subtotal
     public void calculateSubtotal() {
         this.subtotal = this.unitPrice.multiply(BigDecimal.valueOf(this.quantity));
     }

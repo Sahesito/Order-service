@@ -7,6 +7,6 @@ import sahe.com.orderservice.model.Order;
 @Data
 public class OrderStatusUpdateRequest {
 
-    @NotNull(message = "Se requiere estado")
+    @NotNull(message = "Status required")
     private Order.OrderStatus status;
 }

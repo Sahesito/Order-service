@@ -67,13 +67,11 @@ public class Order {
         CANCELLED
     }
 
-    // Metodo helper para agregar items
     public void addItem(OrderItem item) {
         items.add(item);
         item.setOrder(this);
     }
 
-    // Calcular total automáticamente
     public void calculateTotal() {
         this.totalAmount = items.stream()
                 .map(OrderItem::getSubtotal)

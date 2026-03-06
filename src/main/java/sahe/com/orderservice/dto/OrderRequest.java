@@ -11,24 +11,24 @@ import java.util.List;
 @Data
 public class OrderRequest {
 
-    @NotNull(message = "Se requiere ID de usuario")
+    @NotNull(message = "User ID required")
     private Long userId;
 
-    @NotBlank(message = "Se requiere dirección de envío")
+    @NotBlank(message = "Shipping address required")
     private String shippingAddress;
 
-    @NotBlank(message = "Se requiere ciudad de envío")
+    @NotBlank(message = "Shipping city required")
     private String shippingCity;
 
-    @NotBlank(message = "Se requiere país de envío")
+    @NotBlank(message = "Shipping country required")
     private String shippingCountry;
 
-    @NotBlank(message = "Se requiere método de pago")
+    @NotBlank(message = "Payment method required")
     private String paymentMethod;
 
     private String notes;
 
-    @NotEmpty(message = "El pedido debe tener al menos un artículo")
+    @NotEmpty(message = "The order must contain at least one item")
     @Valid
     private List<OrderItemRequest> items;
 }

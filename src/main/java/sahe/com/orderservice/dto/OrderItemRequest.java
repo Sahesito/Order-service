@@ -7,10 +7,10 @@ import lombok.Data;
 @Data
 public class OrderItemRequest {
 
-    @NotNull(message = "Id del producto es requerido")
+    @NotNull(message = "Product ID is required")
     private Long productId;
 
-    @NotNull(message = "La cantidad es requerida")
-    @Min(value = 1, message = "la cantidad debe ser por lo menos 1")
+    @NotNull(message = "The quantity is required")
+    @Min(value = 1, message = "the quantity must be at least 1")
     private Integer quantity;
 }
